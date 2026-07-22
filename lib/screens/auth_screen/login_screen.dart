@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:news_app/api_service/hooks/auth_api.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_colors.dart';
 import 'package:news_app/theme/app_theme.dart';
@@ -27,17 +28,27 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    // TODO: wire to your actual auth call
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(AppRoutes.home);
+    try {
+      await login(_emailController.text.trim(), _passwordController.text);
+      if (!mounted) return;
+      context.go(AppRoutes.home);
+    } catch (e) {
+      _showError(_extractErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _handleGoogleLogin() async {
@@ -49,6 +60,17 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     context.go(AppRoutes.home);
+  }
+
+  String _extractErrorMessage(Object e) {
+    // DioException carries the server's error payload in e.response?.data
+    try {
+      final dynamic data = (e as dynamic).response?.data;
+      if (data is Map && data['message'] != null) {
+        return data['message'].toString();
+      }
+    } catch (_) {}
+    return 'Login failed. Check your credentials and try again.';
   }
 
   @override

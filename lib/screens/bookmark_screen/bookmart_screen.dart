@@ -55,56 +55,7 @@ class _BookmarkScreenState extends State<BookmarkScreen> {
               ),
             ),
 
-            // Filter chips
-            SizedBox(
-              height: 68,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    margin: const EdgeInsets.only(right: 10),
-                    decoration: const BoxDecoration(
-                      color: _accentTeal,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white),
-                  ),
-                  ...List.generate(_filters.length, (index) {
-                    final selected = _selectedFilter == index;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: ChoiceChip(
-                        label: Text(_filters[index]),
-                        selected: selected,
-                        onSelected: (_) => setState(() => _selectedFilter = index),
-                        labelStyle: TextStyle(
-                          color: selected ? Colors.white : colors.textPri,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                        backgroundColor: Colors.transparent,
-                        selectedColor: _accentTeal,
-                        shape: StadiumBorder(
-                          side: BorderSide(
-                            color: selected
-                                ? _accentTeal
-                                : colors.textSec.withOpacity(0.4),
-                          ),
-                        ),
-                        showCheckmark: false,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
+
 
             const SizedBox(height: 27),
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_theme.dart';
 import 'package:news_app/theme/theme_controller.dart';
@@ -13,7 +14,7 @@ void main() {
       statusBarColor: Colors.transparent,
     ),
   );
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
