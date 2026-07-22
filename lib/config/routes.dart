@@ -16,6 +16,7 @@ import 'package:news_app/screens/onboarding/onboarding_screen.dart';
 import 'package:news_app/screens/profile/edit_profile.dart';
 import 'package:news_app/screens/profile/profile_screen.dart';
 import 'package:news_app/screens/profile/security_screen.dart';
+import 'package:news_app/screens/search_screen/search_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -33,6 +34,9 @@ class AppRoutes {
   static const String security = '/security';
   static const String forgotpassword = '/forgotpassword';
   static const String resetpassword = '/resetpassword';
+
+static const search = '/search';
+
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -82,6 +86,12 @@ class AppRoutes {
         name: security,
         builder: (context, state) => const SecurityScreen(),
       ),
+
+      // inside your GoRouter routes list:
+GoRoute(
+  path: AppRoutes.search,
+  builder: (context, state) => const SearchScreen(),
+),
 
       GoRoute(
         path: article,
