@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:news_app/api_service/hooks/bookmarks_api.dart';
+import 'package:news_app/api_service/model/models.dart' as api;
+import 'package:news_app/api_service/token_storage.dart';
 import 'package:news_app/config/routes.dart';
-import 'package:news_app/data/mock_news.dart';
 import 'package:news_app/model/news_model.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
@@ -13,19 +15,75 @@ class BookmarkScreen extends StatefulWidget {
 }
 
 class _BookmarkScreenState extends State<BookmarkScreen> {
-  static const _accentTeal = Color(0xff2E9E8E);
+  bool _isLoading = true;
+  String? _error;
+  List<NewsArticle> _bookmarkedArticles = [];
 
-  int _selectedFilter = 0;
-  final _filters = const ['Reading List', 'References', 'Research'];
+  @override
+  void initState() {
+    super.initState();
+    _loadBookmarks();
+  }
 
-  List<NewsArticle> get _bookmarkedArticles => [
-        ...mockBreakingNews,
-        ...mockRecentStories,
-      ].where((a) => a.isBookmarked).toList();
+  Future<void> _loadBookmarks() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final deviceId = await getDeviceId();
+      final bookmarks = await fetchBookmarks(deviceId);
+
+      final articles = bookmarks
+          .where((b) => b.article != null)
+          .map((b) => _mapArticle(b.article!))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _bookmarkedArticles = articles;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  NewsArticle _mapArticle(api.Article article) {
+    final sourceName = article.feed?.name ?? 'Unknown';
+    return NewsArticle(
+      id: article.id,
+      title: article.title,
+      description: _stripHtml(article.description),
+      body: _stripHtml(article.content),
+      image: article.imageUrl ?? 'https://picsum.photos/seed/${article.id}/400/400',
+      source: sourceName,
+      sourceInitial: sourceName.isNotEmpty ? sourceName[0].toUpperCase() : '?',
+      sourceColor: Colors.primaries[article.id % Colors.primaries.length],
+      timeAgo: _timeAgo(article.publishedAt),
+      views: '',
+      category: article.category ?? 'General', comments: '',
+    );
+  }
+
+  String _stripHtml(String html) => html.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+
+  String _timeAgo(DateTime? date) {
+    if (date == null) return '';
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final articles = _bookmarkedArticles;
     final colors = context.colors;
 
     return Scaffold(
@@ -33,7 +91,6 @@ class _BookmarkScreenState extends State<BookmarkScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               child: Row(
@@ -55,30 +112,47 @@ class _BookmarkScreenState extends State<BookmarkScreen> {
               ),
             ),
 
-
-
             const SizedBox(height: 27),
 
-            // Article list
             Expanded(
-              child: articles.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No bookmarks yet',
-                        style: TextStyle(
-                          color: colors.textSec,
-                          fontSize: 15,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      itemCount: articles.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 24),
-                      itemBuilder: (context, index) {
-                        return _ArticleCard(article: articles[index]);
-                      },
-                    ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text("Couldn't load bookmarks",
+                                  style: TextStyle(color: colors.textPri)),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: _loadBookmarks,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _bookmarkedArticles.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No bookmarks yet',
+                                style: TextStyle(
+                                  color: colors.textSec,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadBookmarks,
+                              child: ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                itemCount: _bookmarkedArticles.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 24),
+                                itemBuilder: (context, index) {
+                                  return _ArticleCard(article: _bookmarkedArticles[index]);
+                                },
+                              ),
+                            ),
             ),
           ],
         ),

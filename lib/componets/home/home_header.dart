@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 import 'package:news_app/theme/theme_controller.dart';
 
@@ -25,17 +27,10 @@ class HomeHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "Good Morning 👋",
-                      style: TextStyle(color: colors.textSec, fontSize: 13),
-                    ),
+                    Text("Good Morning 👋", style: TextStyle(color: colors.textSec, fontSize: 13)),
                     Text(
                       "Script Dev",
-                      style: TextStyle(
-                        color: colors.textPri,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(color: colors.textPri, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -43,19 +38,14 @@ class HomeHeader extends StatelessWidget {
               Container(
                 height: 48,
                 width: 48,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(26),
-                ),
+                decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(26)),
                 child: ValueListenableBuilder<ThemeMode>(
                   valueListenable: themeController,
                   builder: (context, mode, _) {
                     return IconButton(
                       onPressed: () => themeController.toggle(),
                       icon: Icon(
-                        mode == ThemeMode.dark
-                            ? Icons.wb_sunny_outlined
-                            : Icons.nightlight_outlined,
+                        mode == ThemeMode.dark ? Icons.wb_sunny_outlined : Icons.nightlight_outlined,
                         color: colors.textPri,
                       ),
                     );
@@ -66,10 +56,7 @@ class HomeHeader extends StatelessWidget {
               Container(
                 height: 48,
                 width: 48,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(26),
-                ),
+                decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(26)),
                 child: IconButton(
                   onPressed: () {},
                   icon: Icon(Icons.notifications_none_rounded, color: colors.textPri),
@@ -78,21 +65,25 @@ class HomeHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 25),
-          Container(
-            height: 56,
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(58),
-            ),
-            child: TextField(
-              style: TextStyle(color: colors.textPri),
-              decoration: InputDecoration(
-                hintText: "Search news...",
-                hintStyle: TextStyle(color: colors.textSec),
-                prefixIcon: Icon(Icons.search, color: colors.textSec),
-                suffixIcon: Icon(Icons.mic_none_rounded, color: colors.textSec),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 18),
+
+          // Tap-through search bar — no typing here, just routes to SearchScreen
+          GestureDetector(
+            onTap: () => context.push(AppRoutes.search),
+            child: Container(
+              height: 56,
+              decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(58)),
+              child: TextField(
+                enabled: false,
+                style: TextStyle(color: colors.textPri),
+                decoration: InputDecoration(
+                  hintText: "Search news...",
+                  hintStyle: TextStyle(color: colors.textSec),
+                  prefixIcon: Icon(Icons.search, color: colors.textSec),
+                  suffixIcon: Icon(Icons.mic_none_rounded, color: colors.textSec),
+                  disabledBorder: InputBorder.none,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                ),
               ),
             ),
           ),

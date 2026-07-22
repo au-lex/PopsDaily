@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:news_app/api_service/hooks/articles_api.dart';
+import 'package:news_app/api_service/model/models.dart' as api;
 import 'package:news_app/config/routes.dart';
-import 'package:news_app/data/mock_news.dart';
 import 'package:news_app/model/news_model.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
@@ -22,9 +23,65 @@ class _ArticleScreenState extends State<ArticleScreen> {
   bool _isSummaryVisible = false;
   bool _isGeneratingSummary = false;
 
+  bool _isLoadingRecommended = true;
+  List<NewsArticle> _recommended = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecommended();
+  }
+
+  Future<void> _loadRecommended() async {
+    try {
+      final result = await fetchArticles(category: widget.article.category.toLowerCase());
+      final mapped = result
+          .map(_mapArticle)
+          .where((a) => a.title != widget.article.title)
+          .take(6)
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _recommended = mapped;
+        _isLoadingRecommended = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingRecommended = false);
+    }
+  }
+
+  NewsArticle _mapArticle(api.Article article) {
+    final sourceName = article.feed?.name ?? 'Unknown';
+    return NewsArticle(
+      id: article.id,
+      title: article.title,
+      description: _stripHtml(article.description),
+      body: _stripHtml(article.content),
+      image: article.imageUrl ?? 'https://picsum.photos/seed/${article.id}/400/400',
+      source: sourceName,
+      sourceInitial: sourceName.isNotEmpty ? sourceName[0].toUpperCase() : '?',
+      sourceColor: Colors.primaries[article.id % Colors.primaries.length],
+      timeAgo: _timeAgo(article.publishedAt),
+      views: '',
+      category: article.category ?? 'General', comments: '',
+    );
+  }
+
+  String _stripHtml(String html) => html.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+
+  String _timeAgo(DateTime? date) {
+    if (date == null) return '';
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
   Future<void> _onToggleListen() async {
     // TODO: wire to your actual text-to-speech package (e.g. flutter_tts).
-    // This just flips a play/pause state for now.
     setState(() => _isReading = !_isReading);
   }
 
@@ -44,35 +101,11 @@ class _ArticleScreenState extends State<ArticleScreen> {
     });
   }
 
-  /// Builds a "Recommended for You" list from the app's mock data,
-  /// excluding the currently open article. Same-category articles are
-  /// surfaced first, then the rest fill in up to [limit].
-  List<NewsArticle> _buildRecommendations(
-    NewsArticle current, {
-    int limit = 6,
-  }) {
-    final all = [...mockBreakingNews, ...mockRecentStories];
-
-    final sameCategory = <NewsArticle>[];
-    final others = <NewsArticle>[];
-
-    for (final a in all) {
-      if (a.title == current.title) continue;
-      if (a.category == current.category) {
-        sameCategory.add(a);
-      } else {
-        others.add(a);
-      }
-    }
-
-    return [...sameCategory, ...others].take(limit).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final article = widget.article;
-    final recommended = _buildRecommendations(article);
+    final recommended = _recommended;
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -243,9 +276,6 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   ),
                   const SizedBox(height: 35),
 
-                  // AI Summary block — only shown once generated via the
-                  // button above. Content is still placeholder; wire to a
-                  // real summarization call if/when you have one.
                   AnimatedCrossFade(
                     duration: const Duration(milliseconds: 250),
                     crossFadeState: _isSummaryVisible
@@ -291,7 +321,14 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   ),
                   const SizedBox(height: 40),
 
-                  if (recommended.isNotEmpty) ...[
+                  if (_isLoadingRecommended) ...[
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: CircularProgressIndicator(color: colors.pri),
+                      ),
+                    ),
+                  ] else if (recommended.isNotEmpty) ...[
                     Text(
                       'Recommended for You',
                       style: TextStyle(
@@ -307,7 +344,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
             ),
           ),
 
-          if (recommended.isNotEmpty)
+          if (!_isLoadingRecommended && recommended.isNotEmpty)
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 230,
@@ -330,9 +367,6 @@ class _ArticleScreenState extends State<ArticleScreen> {
   }
 }
 
-/// Recommended-for-you card, styled to match [NewsCard]'s typography,
-/// source-avatar treatment, and timeAgo/views row — just arranged
-/// vertically (image on top) so it fits a horizontal carousel.
 class _RecommendedNewsCard extends StatelessWidget {
   const _RecommendedNewsCard({required this.article});
 

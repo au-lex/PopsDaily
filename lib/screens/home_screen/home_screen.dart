@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:news_app/api_service/hooks/articles_api.dart';
+import 'package:news_app/api_service/model/models.dart' as api;
 import 'package:news_app/componets/home/breaking_card.dart';
 import 'package:news_app/componets/home/category_chip.dart';
 import 'package:news_app/componets/home/home_header.dart';
 import 'package:news_app/componets/home/news_card.dart';
 import 'package:news_app/componets/home/section.dart';
-import 'package:news_app/data/mock_news.dart';
+import 'package:news_app/model/news_model.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,18 +18,73 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = 'All';
+  bool _isLoading = true;
+  String? _error;
+  List<NewsArticle> _articles = [];
 
   static const _categories = ['All', 'Politics', 'Technology', 'Business'];
 
   @override
-  Widget build(BuildContext context) {
-    final filteredStories = _selectedCategory == 'All'
-        ? mockRecentStories
-        : mockRecentStories
-              .where((a) => a.category == _selectedCategory)
-              .toList();
+  void initState() {
+    super.initState();
+    _loadArticles();
+  }
 
+  Future<void> _loadArticles() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final category = _selectedCategory == 'All'
+          ? null
+          : _selectedCategory.toLowerCase();
+
+      final result = await fetchArticles(category: category);
+
+      setState(() {
+        _articles = result.map(_mapArticle).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  NewsArticle _mapArticle(api.Article article) {
+    final sourceName = article.feed?.name ?? 'Unknown';
+    return NewsArticle(
+            id: article.id,
+      title: article.title,
+      description: article.description.replaceAll(RegExp(r'<[^>]*>'), '').trim(),
+      image: article.imageUrl ?? 'https://picsum.photos/seed/${article.id}/400/400',
+      source: sourceName,
+      sourceInitial: sourceName.isNotEmpty ? sourceName[0].toUpperCase() : '?',
+      sourceColor: Colors.primaries[article.id % Colors.primaries.length],
+      timeAgo: _timeAgo(article.publishedAt),
+      views: '',
+      category: article.category ?? 'General', body: '', comments: '',
+    );
+  }
+
+  String _timeAgo(DateTime? date) {
+    if (date == null) return '';
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
+    final breaking = _articles.take(5).toList();
+    final recent = _articles.skip(5).toList();
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -36,39 +93,60 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const HomeHeader(),
             const SizedBox(height: 20),
-
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 120),
-                child: Column(
-                  children: [
-                    SectionTitle(title: "Trending", onSeeAll: () {}),
-                    const SizedBox(height: 18),
-                    BreakingNews(articles: mockBreakingNews),
-                    const SizedBox(height: 30),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text("Couldn't load news",
+                                  style: TextStyle(color: colors.textPri)),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: _loadArticles,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadArticles,
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.only(bottom: 120),
+                            child: Column(
+                              children: [
+                                if (breaking.isNotEmpty) ...[
+                                  SectionTitle(title: "Trending", onSeeAll: () {}),
+                                  const SizedBox(height: 18),
+                                  BreakingNews(articles: breaking),
+                                  const SizedBox(height: 30),
+                                ],
 
-                    SectionTitle(title: "Recent Stories", onSeeAll: () {}),
-                    const SizedBox(height: 16),
-                    CategoryFilter(
-                      categories: _categories,
-                      selected: _selectedCategory,
-                      onSelected: (category) {
-                        setState(() => _selectedCategory = category);
-                      },
-                    ),
-                    const SizedBox(height: 8),
+                                SectionTitle(title: "Recent Stories", onSeeAll: () {}),
+                                const SizedBox(height: 16),
+                                CategoryFilter(
+                                  categories: _categories,
+                                  selected: _selectedCategory,
+                                  onSelected: (category) {
+                                    setState(() => _selectedCategory = category);
+                                    _loadArticles();
+                                  },
+                                ),
+                                const SizedBox(height: 8),
 
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filteredStories.length,
-                      itemBuilder: (_, index) {
-                        return NewsCard(article: filteredStories[index]);
-                      },
-                    ),
-                  ],
-                ),
-              ),
+                                ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: recent.length,
+                                  itemBuilder: (_, index) => NewsCard(article: recent[index]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
             ),
           ],
         ),

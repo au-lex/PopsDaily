@@ -15,3 +15,4 @@ Future<Article> fetchArticle(int id) async {
   final res = await dio.get('/articles/$id');
   return Article.fromJson(res.data);
 }
+
