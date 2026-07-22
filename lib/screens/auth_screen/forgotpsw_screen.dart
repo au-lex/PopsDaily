@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:news_app/api_service/hooks/auth_api.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_colors.dart';
 import 'package:news_app/theme/app_theme.dart';
@@ -23,21 +24,43 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
+  String _extractErrorMessage(Object e) {
+    // DioException carries the server's error payload in e.response?.data
+    try {
+      final dynamic data = (e as dynamic).response?.data;
+      if (data is Map && data['message'] != null) {
+        return data['message'].toString();
+      }
+    } catch (_) {}
+    return 'Could not send the code. Please try again.';
+  }
+
   Future<void> _handleSendOtp() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    // TODO: wire to your actual "send OTP to email" call
-    await Future.delayed(const Duration(seconds: 1));
+    final email = _emailController.text.trim();
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    context.push(
-      AppRoutes.resetpassword,
-      extra: {'email': _emailController.text.trim()},
-    );
+    try {
+      await forgotPassword(email);
+      if (!mounted) return;
+      context.push(
+        AppRoutes.resetpassword,
+        extra: {'email': email},
+      );
+    } catch (e) {
+      _showError(_extractErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override

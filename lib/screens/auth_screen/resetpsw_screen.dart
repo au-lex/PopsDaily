@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:news_app/api_service/hooks/auth_api.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_colors.dart';
 import 'package:news_app/theme/app_theme.dart';
@@ -52,6 +53,27 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   String get _otpValue => _otpControllers.map((c) => c.text).join();
 
+  void _showMessage(String message, {bool isError = true}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.error : AppColors.pri,
+      ),
+    );
+  }
+
+  String _extractErrorMessage(Object e, String fallback) {
+    // DioException carries the server's error payload in e.response?.data
+    try {
+      final dynamic data = (e as dynamic).response?.data;
+      if (data is Map && data['message'] != null) {
+        return data['message'].toString();
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
   void _onOtpChanged(int index, String value) {
     if (_otpError != null) setState(() => _otpError = null);
 
@@ -74,24 +96,48 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     }
     if (!formValid) return;
 
+    if (widget.email == null || widget.email!.isEmpty) {
+      _showMessage('Missing email — go back and request a new code.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    // TODO: wire to your actual "verify OTP + set new password" call
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(AppRoutes.login);
+    try {
+      final message = await resetPassword(
+        widget.email!,
+        _otpValue,
+        _newPasswordController.text,
+      );
+      if (!mounted) return;
+      _showMessage(message, isError: false);
+      context.go(AppRoutes.login);
+    } catch (e) {
+      _showMessage(
+        _extractErrorMessage(e, 'Could not reset password. Check the code and try again.'),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _handleResendCode() async {
+    if (widget.email == null || widget.email!.isEmpty) {
+      _showMessage('Missing email — go back and request a new code.');
+      return;
+    }
+
     setState(() => _isResending = true);
 
-    // TODO: wire to your actual "resend OTP" call
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-    setState(() => _isResending = false);
+    try {
+      final message = await resendOtp(widget.email!);
+      if (!mounted) return;
+      _showMessage(message, isError: false);
+    } catch (e) {
+      _showMessage(_extractErrorMessage(e, 'Could not resend the code.'));
+    } finally {
+      if (mounted) setState(() => _isResending = false);
+    }
   }
 
   @override

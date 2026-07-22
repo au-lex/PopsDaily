@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:news_app/api_service/hooks/auth_api.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_colors.dart';
 import 'package:news_app/theme/app_theme.dart';
@@ -32,17 +33,43 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
   Future<void> _handleSignup() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    // TODO: wire to your actual signup/auth call
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      await signup(
+        fullName: _fullNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        phone: _phoneController.text.trim(),
+      );
+      if (!mounted) return;
+      context.go(AppRoutes.home);
+    } catch (e) {
+      _showError(_extractErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(AppRoutes.home);
+  String _extractErrorMessage(Object e) {
+    // DioException carries the server's error payload in e.response?.data
+    try {
+      final dynamic data = (e as dynamic).response?.data;
+      if (data is Map && data['message'] != null) {
+        return data['message'].toString();
+      }
+    } catch (_) {}
+    return 'Signup failed. Please try again.';
   }
 
   @override
