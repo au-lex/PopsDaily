@@ -1,20 +1,23 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_colors.dart';
 import 'package:news_app/theme/app_theme.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -22,28 +25,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _fullNameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+  Future<void> _handleSignup() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    // TODO: wire to your actual auth call
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(AppRoutes.home);
-  }
-
-  Future<void> _handleGoogleLogin() async {
-    setState(() => _isLoading = true);
-
-    // TODO: wire to your actual Google sign-in flow
+    // TODO: wire to your actual signup/auth call
     await Future.delayed(const Duration(seconds: 1));
 
     if (!mounted) return;
@@ -66,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
 
                 Text(
-                  'Welcome back',
+                  'Create account',
                   style: TextStyle(
                     fontFamily: AppTheme.headingFont,
                     fontSize: 30,
@@ -76,10 +70,37 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Sign in to catch up on your news.',
+                  'Sign up to start catching up on your news.',
                   style: TextStyle(fontSize: 15, color: AppColors.textSec),
                 ),
                 const SizedBox(height: 40),
+
+                // Full name field
+                const Text(
+                  'Full name',
+                  style: TextStyle(
+                    color: AppColors.textSec,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _fullNameController,
+                  textCapitalization: TextCapitalization.words,
+                  style: const TextStyle(color: AppColors.textPri),
+                  decoration: _inputDecoration('Jane Doe'),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Enter your full name';
+                    }
+                    if (!value.trim().contains(' ')) {
+                      return 'Enter your first and last name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
 
                 // Email field
                 const Text(
@@ -100,8 +121,40 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Enter your email';
                     }
-                    if (!value.contains('@')) {
+                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                        .hasMatch(value.trim())) {
                       return 'Enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                // Phone field
+                const Text(
+                  'Phone number',
+                  style: TextStyle(
+                    color: AppColors.textSec,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(color: AppColors.textPri),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]')),
+                  ],
+                  decoration: _inputDecoration('+1 555 123 4567'),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Enter your phone number';
+                    }
+                    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (digits.length < 7) {
+                      return 'Enter a valid phone number';
                     }
                     return null;
                   },
@@ -138,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Enter your password';
+                      return 'Enter a password';
                     }
                     if (value.length < 6) {
                       return 'Password must be at least 6 characters';
@@ -146,28 +199,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
-
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                     context.go(AppRoutes.forgotpassword);
-                    },
-                    child: const Text(
-                      'Forgot password?',
-                      style: TextStyle(color: AppColors.textSec, fontSize: 13),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 32),
 
                 // Pill button
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
+                    onPressed: _isLoading ? null : _handleSignup,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.pri,
                       foregroundColor: AppColors.white,
@@ -186,62 +225,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
                         : const Text(
-                            'Log In',
+                            'Sign Up',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(color: AppColors.textSec.withOpacity(0.3)),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'or',
-                        style: TextStyle(
-                          color: AppColors.textSec.withOpacity(0.7),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(color: AppColors.textSec.withOpacity(0.3)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Google sign-in
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _handleGoogleLogin,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textPri,
-                      side: BorderSide(color: AppColors.textSec.withOpacity(0.3)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                    ),
-                    icon: Image.network(
-                      'https://www.google.com/favicon.ico',
-                      width: 20,
-                      height: 20,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.g_mobiledata, size: 24),
-                    ),
-                    label: const Text(
-                      'Continue with Google',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -254,16 +243,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         fontSize: 14,
                       ),
                       children: [
-                        const TextSpan(text: "Don't have an account? "),
+                        const TextSpan(text: "Already have an account? "),
                         TextSpan(
-                          text: 'Sign up',
+                          text: 'Log in',
                           style: const TextStyle(
                             color: AppColors.textPri,
                             fontWeight: FontWeight.w600,
                           ),
                           recognizer: TapGestureRecognizer()
                             ..onTap = () {
-                                  context.go(AppRoutes.signup);
+                              context.go(AppRoutes.login);
                             },
                         ),
                       ],

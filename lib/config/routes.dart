@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:news_app/config/bottom_tab.dart';
 import 'package:news_app/model/news_model.dart';
+import 'package:news_app/screens/auth_screen/forgotpsw_screen.dart';
 import 'package:news_app/screens/auth_screen/login_screen.dart';
+import 'package:news_app/screens/auth_screen/resetpsw_screen.dart';
+import 'package:news_app/screens/auth_screen/signup_screen.dart';
+
 import 'package:news_app/screens/bookmark_screen/bookmart_screen.dart';
 import 'package:news_app/screens/explore/explore_screen.dart';
 import 'package:news_app/screens/home_screen/home_screen.dart';
@@ -19,6 +23,7 @@ class AppRoutes {
   static const String splash = '/';
   static const String onboarding = '/onboarding';
   static const String login = '/login';
+  static const String signup = '/signup';
   static const String home = '/home';
   static const String explore = '/explore';
   static const String bookmark = '/bookmark';
@@ -26,6 +31,8 @@ class AppRoutes {
   static const String article = '/article';
   static const String editPersonalInfo = '/editPersonalInfo';
   static const String security = '/security';
+  static const String forgotpassword = '/forgotpassword';
+  static const String resetpassword = '/resetpassword';
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -41,6 +48,27 @@ class AppRoutes {
         path: login,
         name: login,
         builder: (context, state) => const LoginScreen(),
+      ),
+
+      GoRoute(
+        path: signup,
+        name: signup,
+        builder: (context, state) => const SignupScreen(),
+      ),
+
+      GoRoute(
+        path: forgotpassword,
+        name: forgotpassword,
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+
+      GoRoute(
+        path: resetpassword,
+        name: resetpassword,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return ResetPasswordScreen(email: extra?['email'] as String?);
+        },
       ),
 
       GoRoute(
