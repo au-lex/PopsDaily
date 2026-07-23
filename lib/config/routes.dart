@@ -10,6 +10,7 @@ import 'package:news_app/screens/auth_screen/signup_screen.dart';
 import 'package:news_app/screens/bookmark_screen/bookmart_screen.dart';
 import 'package:news_app/screens/explore/explore_screen.dart';
 import 'package:news_app/screens/home_screen/home_screen.dart';
+import 'package:news_app/screens/news_category_screen/category_screen.dart';
 import 'package:news_app/screens/news_details/news_details.dart';
 
 import 'package:news_app/screens/onboarding/onboarding_screen.dart';
@@ -34,9 +35,9 @@ class AppRoutes {
   static const String security = '/security';
   static const String forgotpassword = '/forgotpassword';
   static const String resetpassword = '/resetpassword';
+  static const publisher = '/publisher';
 
-static const search = '/search';
-
+  static const search = '/search';
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -87,12 +88,21 @@ static const search = '/search';
         builder: (context, state) => const SecurityScreen(),
       ),
 
-      // inside your GoRouter routes list:
-GoRoute(
-  path: AppRoutes.search,
-  builder: (context, state) => const SearchScreen(),
-),
+      GoRoute(
+        path: AppRoutes.search,
+        builder: (context, state) => const SearchScreen(),
+      ),
 
+      GoRoute(
+        path: AppRoutes.publisher,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return PublisherArticlesScreen(
+            sourceId: extra?['sourceId'] as int? ?? 0,
+            displayName: extra?['displayName'] as String?,
+          );
+        },
+      ),
       GoRoute(
         path: article,
         name: 'article',

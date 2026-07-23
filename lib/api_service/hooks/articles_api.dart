@@ -16,3 +16,16 @@ Future<Article> fetchArticle(int id) async {
   return Article.fromJson(res.data);
 }
 
+Future<ArticleListResponse> fetchArticlesBySourceId(
+  int sourceId, {
+  int page = 1,
+  int limit = 20,
+  String? category,
+}) async {
+  final res = await dio.get('/articles/source-id/$sourceId', queryParameters: {
+    'page': page,
+    'limit': limit,
+    if (category != null) 'category': category,
+  });
+  return ArticleListResponse.fromJson(res.data);
+}

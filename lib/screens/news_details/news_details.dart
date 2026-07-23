@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:news_app/api_service/hooks/articles_api.dart';
-import 'package:news_app/api_service/model/models.dart' as api;
-import 'package:news_app/config/routes.dart';
 import 'package:news_app/model/news_model.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
@@ -22,63 +18,6 @@ class _ArticleScreenState extends State<ArticleScreen> {
 
   bool _isSummaryVisible = false;
   bool _isGeneratingSummary = false;
-
-  bool _isLoadingRecommended = true;
-  List<NewsArticle> _recommended = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRecommended();
-  }
-
-  Future<void> _loadRecommended() async {
-    try {
-      final result = await fetchArticles(category: widget.article.category.toLowerCase());
-      final mapped = result
-          .map(_mapArticle)
-          .where((a) => a.title != widget.article.title)
-          .take(6)
-          .toList();
-
-      if (!mounted) return;
-      setState(() {
-        _recommended = mapped;
-        _isLoadingRecommended = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isLoadingRecommended = false);
-    }
-  }
-
-  NewsArticle _mapArticle(api.Article article) {
-    final sourceName = article.feed?.name ?? 'Unknown';
-    return NewsArticle(
-      id: article.id,
-      title: article.title,
-      description: _stripHtml(article.description),
-      body: _stripHtml(article.content),
-      image: article.imageUrl ?? 'https://picsum.photos/seed/${article.id}/400/400',
-      source: sourceName,
-      sourceInitial: sourceName.isNotEmpty ? sourceName[0].toUpperCase() : '?',
-      sourceColor: Colors.primaries[article.id % Colors.primaries.length],
-      timeAgo: _timeAgo(article.publishedAt),
-      views: '',
-      category: article.category ?? 'General', comments: '',
-    );
-  }
-
-  String _stripHtml(String html) => html.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-
-  String _timeAgo(DateTime? date) {
-    if (date == null) return '';
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
 
   Future<void> _onToggleListen() async {
     // TODO: wire to your actual text-to-speech package (e.g. flutter_tts).
@@ -105,7 +44,6 @@ class _ArticleScreenState extends State<ArticleScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final article = widget.article;
-    final recommended = _recommended;
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -319,153 +257,12 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     ),
                     secondChild: const SizedBox(width: double.infinity),
                   ),
-                  const SizedBox(height: 40),
-
-                  if (_isLoadingRecommended) ...[
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: CircularProgressIndicator(color: colors.pri),
-                      ),
-                    ),
-                  ] else if (recommended.isNotEmpty) ...[
-                    Text(
-                      'Recommended for You',
-                      style: TextStyle(
-                        color: colors.textPri,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
           ),
-
-          if (!_isLoadingRecommended && recommended.isNotEmpty)
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 230,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: recommended.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 14),
-                  itemBuilder: (context, index) {
-                    return _RecommendedNewsCard(article: recommended[index]);
-                  },
-                ),
-              ),
-            ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 4)),
         ],
-      ),
-    );
-  }
-}
-
-class _RecommendedNewsCard extends StatelessWidget {
-  const _RecommendedNewsCard({required this.article});
-
-  final NewsArticle article;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return SizedBox(
-      width: 210,
-      child: InkWell(
-        onTap: () => context.push(AppRoutes.article, extra: article),
-        borderRadius: BorderRadius.circular(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.network(
-                article.image,
-                width: double.infinity,
-                height: 110,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: double.infinity,
-                  height: 110,
-                  color: colors.surface,
-                  child: Icon(Icons.image_not_supported, color: colors.textSec),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            Text(
-              article.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.textPri,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 9,
-                  backgroundColor: article.sourceColor,
-                  child: Text(
-                    article.sourceInitial,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    article.source,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.textPri,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-
-            Row(
-              children: [
-                Text(
-                  article.timeAgo,
-                  style: TextStyle(color: colors.textSec, fontSize: 12),
-                ),
-                const SizedBox(width: 10),
-                Icon(
-                  Icons.visibility_outlined,
-                  size: 13,
-                  color: colors.textSec,
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  article.views,
-                  style: TextStyle(color: colors.textSec, fontSize: 12),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
