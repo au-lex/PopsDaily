@@ -67,25 +67,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  NewsArticle _mapArticle(api.Article article) {
-    final sourceName = article.feed?.name ?? 'Unknown';
-    final cleanedBody = article.content.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-    debugPrint('[HomeScreen._mapArticle] id=${article.id} content.length=${article.content.length} cleanedBody.length=${cleanedBody.length}');
-    return NewsArticle(
-      id: article.id,
-      title: article.title,
-      description: article.description.replaceAll(RegExp(r'<[^>]*>'), '').trim(),
-      body: cleanedBody,
-      image: article.imageUrl ?? 'https://picsum.photos/seed/${article.id}/400/400',
-      source: sourceName,
-      sourceInitial: sourceName.isNotEmpty ? sourceName[0].toUpperCase() : '?',
-      sourceColor: Colors.primaries[article.id % Colors.primaries.length],
-      timeAgo: _timeAgo(article.publishedAt),
-      views: '',
-      category: article.category ?? 'General',
-      comments: '',
-    );
-  }
+NewsArticle _mapArticle(api.Article article) {
+  final sourceName = article.feed?.name ?? 'Unknown';
+  final strippedContent = article.content.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+  final strippedDescription = article.description.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+  final readUrl = article.guid.isNotEmpty ? article.guid : article.link;
+
+  debugPrint('[HomeScreen._mapArticle] id=${article.id} guid="${article.guid}" link="${article.link}" readUrl="$readUrl"');
+
+  return NewsArticle(
+    id: article.id,
+    title: article.title,
+    description: strippedDescription,
+    body: strippedContent.isNotEmpty ? strippedContent : strippedDescription,
+    image: article.imageUrl ?? 'https://picsum.photos/seed/${article.id}/400/400',
+    source: sourceName,
+    sourceInitial: sourceName.isNotEmpty ? sourceName[0].toUpperCase() : '?',
+    sourceColor: Colors.primaries[article.id % Colors.primaries.length],
+    timeAgo: _timeAgo(article.publishedAt),
+    views: '',
+    category: article.category ?? 'General',
+    comments: '',
+    link: readUrl,
+  );
+}
 
   String _timeAgo(DateTime? date) {
     if (date == null) return '';
