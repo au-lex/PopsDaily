@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:news_app/api_service/hooks/user_api.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
 class SecurityScreen extends StatelessWidget {
@@ -203,6 +204,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   bool _obscureNew = true;
   bool _obscureConfirm = true;
   bool _isSaving = false;
+  String? _submitError;
 
   @override
   void dispose() {
@@ -215,16 +217,30 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   Future<void> _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSaving = true);
-    // TODO: wire to your actual change-password API call
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    setState(() => _isSaving = false);
+    setState(() {
+      _isSaving = true;
+      _submitError = null;
+    });
 
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Password updated')),
-    );
+    try {
+      await changePassword(
+        currentPassword: _currentController.text,
+        newPassword: _newController.text,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password updated')),
+      );
+    } catch (e) {
+      debugPrint('[ChangePasswordSheet] changePassword failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _submitError = "Current password is incorrect, or something went wrong";
+      });
+    }
   }
 
   @override
@@ -267,6 +283,22 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
                 ),
               ),
               const SizedBox(height: 20),
+
+              if (_submitError != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _submitError!,
+                    style: TextStyle(color: colors.error, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
 
               _PasswordField(
                 colors: colors,

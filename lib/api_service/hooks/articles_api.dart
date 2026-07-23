@@ -3,9 +3,10 @@ import 'package:news_app/api_service/model/models.dart';
 
 
 
-Future<List<Article>> fetchArticles({int page = 1, String? category}) async {
+Future<List<Article>> fetchArticles({int page = 1, String? category, required int limit}) async {
   final res = await dio.get('/articles', queryParameters: {
     'page': page,
+    'limit': limit,
     if (category != null) 'category': category,
   });
   return (res.data['data'] as List).map((e) => Article.fromJson(e)).toList();
