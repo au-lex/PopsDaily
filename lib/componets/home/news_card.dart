@@ -16,11 +16,13 @@ class NewsCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: InkWell(
-        onTap: () => context.push(AppRoutes.article, extra: article),
+        onTap: () {
+          debugPrint('[NewsCard] tapped article id=${article.id} title="${article.title}" body.length=${article.body.length}');
+          context.push(AppRoutes.article, extra: article);
+        },
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Text content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,7 +39,6 @@ class NewsCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-
                   Row(
                     children: [
                       CircleAvatar(
@@ -64,7 +65,6 @@ class NewsCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 6),
-
                   Row(
                     children: [
                       Text(
@@ -85,8 +85,6 @@ class NewsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-
-            // Image + actions
             Column(
               children: [
                 ClipRRect(

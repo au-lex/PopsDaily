@@ -42,12 +42,24 @@ class _HomeScreenState extends State<HomeScreen> {
           : _selectedCategory.toLowerCase();
 
       final result = await fetchArticles(category: category);
+      debugPrint('[HomeScreen] fetched ${result.length} articles from API');
+      if (result.isNotEmpty) {
+        debugPrint('[HomeScreen] raw article[0].content length: ${result[0].content.length}');
+        debugPrint('[HomeScreen] raw article[0].content preview: ${result[0].content.substring(0, result[0].content.length > 100 ? 100 : result[0].content.length)}');
+      }
+
+      final mapped = result.map(_mapArticle).toList();
+      if (mapped.isNotEmpty) {
+        debugPrint('[HomeScreen] mapped article[0].body length: ${mapped[0].body.length}');
+      }
 
       setState(() {
-        _articles = result.map(_mapArticle).toList();
+        _articles = mapped;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[HomeScreen] ERROR loading articles: $e');
+      debugPrint('$st');
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -57,17 +69,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   NewsArticle _mapArticle(api.Article article) {
     final sourceName = article.feed?.name ?? 'Unknown';
+    final cleanedBody = article.content.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    debugPrint('[HomeScreen._mapArticle] id=${article.id} content.length=${article.content.length} cleanedBody.length=${cleanedBody.length}');
     return NewsArticle(
-            id: article.id,
+      id: article.id,
       title: article.title,
       description: article.description.replaceAll(RegExp(r'<[^>]*>'), '').trim(),
+      body: cleanedBody,
       image: article.imageUrl ?? 'https://picsum.photos/seed/${article.id}/400/400',
       source: sourceName,
       sourceInitial: sourceName.isNotEmpty ? sourceName[0].toUpperCase() : '?',
       sourceColor: Colors.primaries[article.id % Colors.primaries.length],
       timeAgo: _timeAgo(article.publishedAt),
       views: '',
-      category: article.category ?? 'General', body: '', comments: '',
+      category: article.category ?? 'General',
+      comments: '',
     );
   }
 

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:news_app/api_service/hooks/feed_api.dart';
+import 'package:news_app/api_service/model/models.dart';
+import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -11,34 +15,6 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> {
   static const _accentTeal = Color(0xff2E9E8E);
 
-  final List<_TopStory> _topStories = const [
-    _TopStory(
-      title: 'Artificial Intelligence (AI) Revolution: How AI is Shaping Our Lives in the Future',
-      source: 'CBS News',
-      timeAgo: '7 days ago',
-      views: '749.3K',
-      comments: '10.4K',
-      image: 'https://picsum.photos/seed/topstory1/500/400',
-    ),
-    _TopStory(
-      title: 'Chaos in Parliament: Debates and Decisions',
-      source: 'BBC News',
-      timeAgo: '6 days ago',
-      views: '638.1K',
-      comments: '8.2K',
-      image: 'https://picsum.photos/seed/topstory2/500/400',
-    ),
-  ];
-
-  final List<_Publisher> _publishers = const [
-    _Publisher(name: 'Daily Sun', color: Color(0xffE63946)),
-    _Publisher(name: 'Vanguard', color: Color(0xff003087)),
-    _Publisher(name: 'Punch', color: Color(0xff2196F3)),
-    _Publisher(name: 'ThisDay', color: Colors.black),
-    _Publisher(name: 'The Guardian', color: Color(0xff1B7339)),
-    _Publisher(name: 'Premium Times', color: Color(0xff6A1B9A)),
-  ];
-
   final List<String> _trendingTags = const [
     'Politics',
     'Economy',
@@ -50,9 +26,42 @@ class _ExploreScreenState extends State<ExploreScreen> {
     'Health',
   ];
 
+  List<FeedSource> _sources = [];
+  bool _sourcesLoading = true;
+  String? _sourcesError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSources();
+  }
+
+  Future<void> _loadSources() async {
+    setState(() {
+      _sourcesLoading = true;
+      _sourcesError = null;
+    });
+    try {
+      final sources = await fetchFeedSources();
+      if (!mounted) return;
+      setState(() => _sources = sources);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sourcesError = 'Could not load publishers');
+    } finally {
+      if (mounted) setState(() => _sourcesLoading = false);
+    }
+  }
+
   void _onTagTap(String tag) {
-    // TODO: wire to your search screen/route, e.g.:
-    // context.push('${AppRoutes.search}?q=$tag');
+    context.push('${AppRoutes.search}?tag=$tag');
+  }
+
+  void _onSourceTap(FeedSource source) {
+    context.push(AppRoutes.publisher, extra: {
+      'sourceId': source.id,
+      'displayName': source.source,
+    });
   }
 
   @override
@@ -81,50 +90,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 const Spacer(),
                 IconButton(
                   icon: Icon(Icons.search, color: colors.textPri),
-                  onPressed: () {},
+                  onPressed: () => context.push(AppRoutes.search),
                 ),
               ],
             ),
             const SizedBox(height: 20),
 
-            // This Week's Top Stories
-            _SectionTitle(
-              title: "This Week's Top Stories",
-              onViewAll: () {},
-            ),
-            const SizedBox(height: 14),
-
-            SizedBox(
-              height: 260,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _topStories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (context, index) {
-                  return _TopStoryCard(story: _topStories[index]);
-                },
+            // Popular Official Publishers — live from /feeds/sources
+            Text(
+              'Popular Official Publishers',
+              style: TextStyle(
+                color: colors.textPri,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
               ),
-            ),
-            const SizedBox(height: 28),
-
-            // Popular Official Publishers
-            _SectionTitle(
-              title: 'Popular Official Publishers',
-              onViewAll: () {},
             ),
             const SizedBox(height: 16),
 
-            SizedBox(
-              height: 92,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _publishers.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 18),
-                itemBuilder: (context, index) {
-                  return _PublisherTile(publisher: _publishers[index]);
-                },
-              ),
-            ),
+            _buildPublishers(colors),
             const SizedBox(height: 28),
 
             // Trending Topics — quick-search hashtags
@@ -174,152 +157,86 @@ class _ExploreScreenState extends State<ExploreScreen> {
       ),
     );
   }
-}
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final VoidCallback onViewAll;
-
-  const _SectionTitle({required this.title, required this.onViewAll});
-
-  static const _accentTeal = Color(0xff2E9E8E);
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: colors.textPri,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
+  Widget _buildPublishers(colors) {
+    if (_sourcesLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
-        InkWell(
-          onTap: onViewAll,
-          child: const Row(
-            children: [
-              Text(
-                'View All',
-                style: TextStyle(
-                  color: _accentTeal,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Icon(Icons.chevron_right, color: _accentTeal, size: 18),
-            ],
+      );
+    }
+    if (_sourcesError != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: InkWell(
+            onTap: _loadSources,
+            child: Text(
+              '${_sourcesError!} · tap to retry',
+              style: TextStyle(color: colors.textSec, fontSize: 12),
+            ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _TopStoryCard extends StatelessWidget {
-  final _TopStory story;
-
-  const _TopStoryCard({required this.story});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return SizedBox(
-      width: 220,
-      child: InkWell(
-        onTap: () {},
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(
-                story.image,
-                width: 220,
-                height: 130,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              story.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.textPri,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              story.source,
-              style: TextStyle(
-                color: colors.textSec,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Text(
-                  story.timeAgo,
-                  style: TextStyle(color: colors.textSec, fontSize: 11),
-                ),
-                const SizedBox(width: 10),
-                Icon(Icons.visibility_outlined,
-                    size: 13, color: colors.textSec),
-                const SizedBox(width: 3),
-                Text(
-                  story.views,
-                  style: TextStyle(color: colors.textSec, fontSize: 11),
-                ),
-                const SizedBox(width: 10),
-                Icon(Icons.mode_comment_outlined,
-                    size: 13, color: colors.textSec),
-                const SizedBox(width: 3),
-                Text(
-                  story.comments,
-                  style: TextStyle(color: colors.textSec, fontSize: 11),
-                ),
-                const Spacer(),
-                Icon(Icons.share_outlined, size: 15, color: colors.textSec),
-                const SizedBox(width: 10),
-                Icon(Icons.more_vert, size: 15, color: colors.textSec),
-              ],
-            ),
-          ],
+      );
+    }
+    if (_sources.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: Text('No publishers yet', style: TextStyle(color: colors.textSec, fontSize: 12)),
         ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _sources.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisSpacing: 18,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.72,
       ),
+      itemBuilder: (context, index) {
+        final source = _sources[index];
+        return _PublisherTile(
+          source: source,
+          onTap: () => _onSourceTap(source),
+        );
+      },
     );
   }
 }
 
 class _PublisherTile extends StatelessWidget {
-  final _Publisher publisher;
+  final FeedSource source;
+  final VoidCallback onTap;
 
-  const _PublisherTile({required this.publisher});
+  const _PublisherTile({required this.source, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final displayName = source.source.isNotEmpty ? source.source : '?';
+    final color = Colors.primaries[displayName.hashCode % Colors.primaries.length];
 
-    return SizedBox(
-      width: 72,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(28),
       child: Column(
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: publisher.color,
+            backgroundColor: color,
             child: Text(
-              publisher.name.isNotEmpty ? publisher.name[0].toUpperCase() : '?',
+              displayName[0].toUpperCase(),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -329,7 +246,7 @@ class _PublisherTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            publisher.name,
+            displayName,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -339,33 +256,12 @@ class _PublisherTile extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          Text(
+            '${source.feedCount} Categorie${source.feedCount == 1 ? '' : 's'}',
+            style: TextStyle(color: colors.textSec, fontSize: 10),
+          ),
         ],
       ),
     );
   }
-}
-
-class _TopStory {
-  final String title;
-  final String source;
-  final String timeAgo;
-  final String views;
-  final String comments;
-  final String image;
-
-  const _TopStory({
-    required this.title,
-    required this.source,
-    required this.timeAgo,
-    required this.views,
-    required this.comments,
-    required this.image,
-  });
-}
-
-class _Publisher {
-  final String name;
-  final Color color;
-
-  const _Publisher({required this.name, required this.color});
 }

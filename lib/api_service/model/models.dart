@@ -1,6 +1,7 @@
 class Feed {
   final int id;
   final String name;
+  final String source;
   final String url;
   final String category;
   final bool active;
@@ -8,14 +9,18 @@ class Feed {
   Feed({
     required this.id,
     required this.name,
+    required this.source,
     required this.url,
     required this.category,
     required this.active,
   });
 
+  
+
   factory Feed.fromJson(Map<String, dynamic> json) => Feed(
     id: json['id'],
     name: json['name'] ?? '',
+    source: json['source'] ?? '',
     url: json['url'] ?? '',
     category: json['category'] ?? '',
     active: json['active'] ?? false,
@@ -111,4 +116,23 @@ class ArticleListResponse {
   }
 
   bool get hasMore => page < totalPages;
+}
+
+
+
+
+
+
+class FeedSource {
+  final int id;
+  final String source;
+  final int feedCount;
+
+  FeedSource({required this.id, required this.source, required this.feedCount});
+
+  factory FeedSource.fromJson(Map<String, dynamic> json) => FeedSource(
+    id: json['id'] ?? 0,
+    source: json['source'] ?? '',
+    feedCount: json['feed_count'] ?? 0,
+  );
 }
