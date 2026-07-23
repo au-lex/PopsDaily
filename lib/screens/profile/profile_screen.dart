@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:news_app/api_service/hooks/user_api.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 import 'package:news_app/theme/theme_controller.dart';
@@ -13,9 +14,39 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final String _userName = 'Jane Doe';
-  final String _userEmail = 'jane.doe@example.com';
+  String? _userName;
+  String? _userEmail;
   final String? _avatarUrl = null;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final user = await fetchProfile();
+      if (!mounted) return;
+      setState(() {
+        _userName = user.fullName;
+        _userEmail = user.email;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('[ProfileScreen] fetchProfile failed: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String get _displayName {
+    if (_userName != null && _userName!.trim().isNotEmpty) return _userName!.trim();
+    return 'Guest';
+  }
+
+  String get _displayEmail => _userEmail ?? '';
 
   @override
   Widget build(BuildContext context) {
@@ -53,8 +84,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       : null,
                   child: _avatarUrl == null
                       ? Text(
-                          _userName.isNotEmpty
-                              ? _userName[0].toUpperCase()
+                          _displayName.isNotEmpty && !_isLoading
+                              ? _displayName[0].toUpperCase()
                               : '?',
                           style: TextStyle(
                             color: colors.pri,
@@ -70,19 +101,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        _userName,
-                        style: TextStyle(
-                          color: colors.textPri,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _userEmail,
-                        style: TextStyle(color: colors.textSec, fontSize: 13),
-                      ),
+                      _isLoading
+                          ? Container(
+                              height: 17,
+                              width: 120,
+                              decoration: BoxDecoration(
+                                color: colors.surface,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            )
+                          : Text(
+                              _displayName,
+                              style: TextStyle(
+                                color: colors.textPri,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                      const SizedBox(height: 6),
+                      _isLoading
+                          ? Container(
+                              height: 13,
+                              width: 160,
+                              decoration: BoxDecoration(
+                                color: colors.surface,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            )
+                          : Text(
+                              _displayEmail,
+                              style: TextStyle(color: colors.textSec, fontSize: 13),
+                            ),
                     ],
                   ),
                 ),

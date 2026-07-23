@@ -1,22 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:news_app/api_service/hooks/user_api.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
 class EditPersonalInfoScreen extends StatefulWidget {
-  const EditPersonalInfoScreen({
-    super.key,
-    this.initialName = 'Jane Doe',
-    this.initialEmail = 'jane.doe@example.com',
-    this.initialPhone = '',
-    this.initialBio = '',
-    this.avatarUrl,
-  });
-
-  final String initialName;
-  final String initialEmail;
-  final String initialPhone;
-  final String initialBio;
-  final String? avatarUrl;
+  const EditPersonalInfoScreen({super.key});
 
   @override
   State<EditPersonalInfoScreen> createState() =>
@@ -32,25 +20,48 @@ class _EditPersonalInfoScreenState extends State<EditPersonalInfoScreen> {
   late final TextEditingController _bioController;
 
   String? _avatarUrl;
+  bool _isLoading = true;
   bool _isSaving = false;
   bool _isDirty = false;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
-    _avatarUrl = widget.avatarUrl;
-    _nameController = TextEditingController(text: widget.initialName)
-      ..addListener(_markDirty);
-    _emailController = TextEditingController(text: widget.initialEmail)
-      ..addListener(_markDirty);
-    _phoneController = TextEditingController(text: widget.initialPhone)
-      ..addListener(_markDirty);
-    _bioController = TextEditingController(text: widget.initialBio)
-      ..addListener(_markDirty);
+    _nameController = TextEditingController()..addListener(_markDirty);
+    _emailController = TextEditingController()..addListener(_markDirty);
+    _phoneController = TextEditingController()..addListener(_markDirty);
+    _bioController = TextEditingController()..addListener(_markDirty);
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final user = await fetchProfile();
+      if (!mounted) return;
+      _nameController.text = user.fullName;
+      _emailController.text = user.email;
+      _phoneController.text = user.phone ?? '';
+      setState(() {
+        _isLoading = false;
+        _isDirty = false; // programmatic fill shouldn't count as dirty
+      });
+    } catch (e) {
+      debugPrint('[EditPersonalInfoScreen] fetchProfile failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadError = "Couldn't load your info";
+      });
+    }
   }
 
   void _markDirty() {
-    if (!_isDirty) setState(() => _isDirty = true);
+    if (!_isDirty && !_isLoading) setState(() => _isDirty = true);
   }
 
   @override
@@ -71,19 +82,31 @@ class _EditPersonalInfoScreenState extends State<EditPersonalInfoScreen> {
 
     setState(() => _isSaving = true);
 
-    // TODO: wire to your actual update-profile API call
-    await Future.delayed(const Duration(milliseconds: 700));
+    try {
+      await updateProfile(
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+      );
 
-    if (!mounted) return;
-    setState(() {
-      _isSaving = false;
-      _isDirty = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _isDirty = false;
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile updated')),
-    );
-    Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated')),
+      );
+      Navigator.of(context).pop(true); // pop with a signal so ProfileScreen can refresh
+    } catch (e) {
+      debugPrint('[EditPersonalInfoScreen] updateProfile failed: $e');
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't save changes")),
+      );
+    }
   }
 
   @override
@@ -110,7 +133,7 @@ class _EditPersonalInfoScreenState extends State<EditPersonalInfoScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: _isDirty && !_isSaving ? _onSave : null,
+            onPressed: _isDirty && !_isSaving && !_isLoading ? _onSave : null,
             child: Text(
               'Save',
               style: TextStyle(
@@ -123,109 +146,134 @@ class _EditPersonalInfoScreenState extends State<EditPersonalInfoScreen> {
         ],
       ),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            children: [
-              Center(child: _AvatarEditor(
-                colors: colors,
-                name: _nameController.text,
-                avatarUrl: _avatarUrl,
-                onTap: _onChangePhoto,
-              )),
-              const SizedBox(height: 32),
-
-              _FieldLabel('Full Name', colors: colors),
-              const SizedBox(height: 8),
-              _ProfileTextField(
-                controller: _nameController,
-                colors: colors,
-                icon: Iconsax.user,
-                hint: 'Enter your full name',
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Name cannot be empty'
-                    : null,
-              ),
-              const SizedBox(height: 20),
-
-              _FieldLabel('Email Address', colors: colors),
-              const SizedBox(height: 8),
-              _ProfileTextField(
-                controller: _emailController,
-                colors: colors,
-                icon: Iconsax.sms,
-                hint: 'Enter your email',
-                keyboardType: TextInputType.emailAddress,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Email cannot be empty';
-                  }
-                  final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                      .hasMatch(v.trim());
-                  return valid ? null : 'Enter a valid email';
-                },
-              ),
-              const SizedBox(height: 20),
-
-              _FieldLabel('Phone Number', colors: colors),
-              const SizedBox(height: 8),
-              _ProfileTextField(
-                controller: _phoneController,
-                colors: colors,
-                icon: Iconsax.call,
-                hint: 'Enter your phone number',
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 20),
-
-              _FieldLabel('Bio', colors: colors),
-              const SizedBox(height: 8),
-              _ProfileTextField(
-                controller: _bioController,
-                colors: colors,
-                icon: Iconsax.document_text,
-                hint: 'Tell us a little about yourself',
-                maxLines: 4,
-                alignIconTop: true,
-              ),
-
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: !_isSaving ? _onSave : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colors.pri,
-                    disabledBackgroundColor: colors.pri.withOpacity(0.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _isSaving
-                      ? SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: colors.white,
-                          ),
-                        )
-                      : Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            color: colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
+        child: _isLoading
+            ? Center(child: CircularProgressIndicator(color: colors.pri))
+            : Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  children: [
+                    if (_loadError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 18, color: colors.textSec),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _loadError!,
+                                style: TextStyle(color: colors.textSec, fontSize: 13),
+                              ),
+                            ),
+                            TextButton(onPressed: _loadProfile, child: const Text('Retry')),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    Center(child: _AvatarEditor(
+                      colors: colors,
+                      name: _nameController.text,
+                      avatarUrl: _avatarUrl,
+                      onTap: _onChangePhoto,
+                    )),
+                    const SizedBox(height: 32),
+
+                    _FieldLabel('Full Name', colors: colors),
+                    const SizedBox(height: 8),
+                    _ProfileTextField(
+                      controller: _nameController,
+                      colors: colors,
+                      icon: Iconsax.user,
+                      hint: 'Enter your full name',
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Name cannot be empty'
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+
+                    _FieldLabel('Email Address', colors: colors),
+                    const SizedBox(height: 8),
+                    _ProfileTextField(
+                      controller: _emailController,
+                      colors: colors,
+                      icon: Iconsax.sms,
+                      hint: 'Enter your email',
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Email cannot be empty';
+                        }
+                        final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                            .hasMatch(v.trim());
+                        return valid ? null : 'Enter a valid email';
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    _FieldLabel('Phone Number', colors: colors),
+                    const SizedBox(height: 8),
+                    _ProfileTextField(
+                      controller: _phoneController,
+                      colors: colors,
+                      icon: Iconsax.call,
+                      hint: 'Enter your phone number',
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 20),
+
+                    _FieldLabel('Bio', colors: colors),
+                    const SizedBox(height: 8),
+                    _ProfileTextField(
+                      controller: _bioController,
+                      colors: colors,
+                      icon: Iconsax.document_text,
+                      hint: 'Tell us a little about yourself',
+                      maxLines: 4,
+                      alignIconTop: true,
+                    ),
+
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: !_isSaving ? _onSave : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colors.pri,
+                          disabledBackgroundColor: colors.pri.withOpacity(0.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: _isSaving
+                            ? SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: colors.white,
+                                ),
+                              )
+                            : Text(
+                                'Save Changes',
+                                style: TextStyle(
+                                  color: colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -257,7 +305,7 @@ class _AvatarEditor extends StatelessWidget {
             backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl!) : null,
             child: avatarUrl == null
                 ? Text(
-                    name.isNotEmpty ? name.trim()[0].toUpperCase() : '?',
+                    name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?',
                     style: TextStyle(
                       color: colors.pri,
                       fontSize: 34,

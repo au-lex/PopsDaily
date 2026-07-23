@@ -11,6 +11,7 @@ import 'package:news_app/screens/bookmark_screen/bookmart_screen.dart';
 import 'package:news_app/screens/explore/explore_screen.dart';
 import 'package:news_app/screens/home_screen/home_screen.dart';
 import 'package:news_app/screens/news_category_screen/category_screen.dart';
+import 'package:news_app/screens/news_details/full_news.dart';
 import 'package:news_app/screens/news_details/news_details.dart';
 
 import 'package:news_app/screens/onboarding/onboarding_screen.dart';
@@ -37,6 +38,8 @@ class AppRoutes {
   static const String resetpassword = '/resetpassword';
   static const publisher = '/publisher';
 
+  static const String seeAll = '/see_all';
+
   static const search = '/search';
 
   static final GoRouter router = GoRouter(
@@ -59,6 +62,18 @@ class AppRoutes {
         path: signup,
         name: signup,
         builder: (context, state) => const SignupScreen(),
+      ),
+
+      GoRoute(
+        path: seeAll,
+        name: seeAll,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return SeeAllScreen(
+            title: extra?['title'] as String? ?? 'See All',
+            initialCategory: extra?['initialCategory'] as String? ?? '',
+          );
+        },
       ),
 
       GoRoute(

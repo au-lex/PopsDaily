@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:news_app/api_service/hooks/articles_api.dart';
+import 'package:news_app/api_service/hooks/bookmarks_api.dart';
+import 'package:news_app/api_service/token_storage.dart';
+
 import 'package:news_app/model/news_model.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
@@ -14,6 +17,7 @@ class ArticleScreen extends StatefulWidget {
 
 class _ArticleScreenState extends State<ArticleScreen> {
   bool _isBookmarked = false;
+  bool _isBookmarkLoading = false;
   bool _isReading = false;
   bool _isSummaryVisible = false;
   bool _isGeneratingSummary = false;
@@ -31,6 +35,46 @@ class _ArticleScreenState extends State<ArticleScreen> {
     _displayBody = widget.article.body;
     if (_hasNoContent) {
       _extractContent();
+    }
+    _checkBookmarkStatus();
+  }
+
+  Future<void> _checkBookmarkStatus() async {
+    try {
+      final deviceId = await getDeviceId();
+      final bookmarked = await checkBookmark(deviceId, widget.article.id);
+      if (!mounted) return;
+      setState(() => _isBookmarked = bookmarked);
+    } catch (e) {
+      debugPrint('[ArticleScreen] bookmark check failed: $e');
+    }
+  }
+
+  Future<void> _onToggleBookmark() async {
+    if (_isBookmarkLoading) return;
+
+    final wasBookmarked = _isBookmarked;
+    setState(() {
+      _isBookmarked = !wasBookmarked; // optimistic update
+      _isBookmarkLoading = true;
+    });
+
+    try {
+      final deviceId = await getDeviceId();
+      if (wasBookmarked) {
+        await removeBookmark(deviceId, widget.article.id);
+      } else {
+        await addBookmark(deviceId, widget.article.id);
+      }
+    } catch (e) {
+      debugPrint('[ArticleScreen] bookmark toggle failed: $e');
+      if (!mounted) return;
+      setState(() => _isBookmarked = wasBookmarked); // revert on failure
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't update bookmark")),
+      );
+    } finally {
+      if (mounted) setState(() => _isBookmarkLoading = false);
     }
   }
 
@@ -98,11 +142,17 @@ class _ArticleScreenState extends State<ArticleScreen> {
             ),
             actions: [
               IconButton(
-                onPressed: () => setState(() => _isBookmarked = !_isBookmarked),
-                icon: Icon(
-                  _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                  color: _isBookmarked ? colors.pri : colors.textPri,
-                ),
+                onPressed: _isBookmarkLoading ? null : _onToggleBookmark,
+                icon: _isBookmarkLoading
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: colors.pri),
+                      )
+                    : Icon(
+                        _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                        color: _isBookmarked ? colors.pri : colors.textPri,
+                      ),
               ),
               const SizedBox(width: 6),
             ],
