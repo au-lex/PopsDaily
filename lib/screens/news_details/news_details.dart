@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:news_app/api_service/hooks/articles_api.dart';
 import 'package:news_app/model/news_model.dart';
 import 'package:news_app/theme/app_color_extension.dart';
 
@@ -13,14 +14,53 @@ class ArticleScreen extends StatefulWidget {
 
 class _ArticleScreenState extends State<ArticleScreen> {
   bool _isBookmarked = false;
-
   bool _isReading = false;
-
   bool _isSummaryVisible = false;
   bool _isGeneratingSummary = false;
 
+  late String _displayBody;
+  bool _isExtracting = false;
+  String? _extractError;
+
+  bool get _hasNoContent =>
+      widget.article.body.isEmpty || widget.article.body == widget.article.description;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayBody = widget.article.body;
+    if (_hasNoContent) {
+      _extractContent();
+    }
+  }
+
+  Future<void> _extractContent() async {
+    setState(() {
+      _isExtracting = true;
+      _extractError = null;
+    });
+    try {
+      final result = await extractArticleContent(widget.article.id);
+      final content = (result['content'] as String? ?? '')
+          .replaceAll(RegExp(r'<[^>]*>'), '')
+          .trim();
+      if (!mounted) return;
+      setState(() {
+        _displayBody = content.isNotEmpty ? content : widget.article.description;
+        _isExtracting = false;
+      });
+    } catch (e) {
+      debugPrint('[ArticleScreen] extraction failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _extractError = "Couldn't load full article";
+        _displayBody = widget.article.description;
+        _isExtracting = false;
+      });
+    }
+  }
+
   Future<void> _onToggleListen() async {
-    // TODO: wire to your actual text-to-speech package (e.g. flutter_tts).
     setState(() => _isReading = !_isReading);
   }
 
@@ -29,9 +69,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
       setState(() => _isSummaryVisible = false);
       return;
     }
-
     setState(() => _isGeneratingSummary = true);
-    // TODO: wire to your actual summarization API call.
     await Future.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
     setState(() {
@@ -86,7 +124,6 @@ class _ArticleScreenState extends State<ArticleScreen> {
               ),
             ),
           ),
-
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -94,36 +131,25 @@ class _ArticleScreenState extends State<ArticleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: colors.pri,
                       borderRadius: BorderRadius.circular(3),
                     ),
                     child: Text(
                       article.category,
-                      style: TextStyle(
-                        color: colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(color: colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   Row(
                     children: [
                       Icon(Icons.access_time, size: 16, color: colors.textSec),
                       const SizedBox(width: 5),
-                      Text(
-                        article.timeAgo,
-                        style: TextStyle(color: colors.textSec),
-                      ),
+                      Text(article.timeAgo, style: TextStyle(color: colors.textSec)),
                     ],
                   ),
                   const SizedBox(height: 15),
-
                   Text(
                     article.title,
                     style: TextStyle(
@@ -134,17 +160,13 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   Row(
                     children: [
                       CircleAvatar(
                         backgroundColor: article.sourceColor,
                         child: Text(
                           article.sourceInitial,
-                          style: TextStyle(
-                            color: colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(color: colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -153,10 +175,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                         children: [
                           Text(
                             article.source,
-                            style: TextStyle(
-                              color: colors.textPri,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(color: colors.textPri, fontWeight: FontWeight.bold),
                           ),
                           Text(
                             '${article.views} views • ${article.comments} comments',
@@ -167,15 +186,12 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-
                   Row(
                     children: [
                       Expanded(
                         child: _ActionPillButton(
                           colors: colors,
-                          icon: _isReading
-                              ? Icons.pause
-                              : Icons.volume_up_outlined,
+                          icon: _isReading ? Icons.pause : Icons.volume_up_outlined,
                           label: _isReading ? 'Pause' : 'Listen',
                           isActive: _isReading,
                           onTap: _onToggleListen,
@@ -186,9 +202,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                         child: _ActionPillButton(
                           colors: colors,
                           icon: Icons.auto_awesome,
-                          label: _isSummaryVisible
-                              ? 'Hide Summary'
-                              : 'AI Summary',
+                          label: _isSummaryVisible ? 'Hide Summary' : 'AI Summary',
                           isActive: _isSummaryVisible,
                           isLoading: _isGeneratingSummary,
                           onTap: _onToggleSummary,
@@ -196,29 +210,57 @@ class _ArticleScreenState extends State<ArticleScreen> {
                       ),
                     ],
                   ),
-
                   if (_isReading) ...[
                     const SizedBox(height: 12),
                     _ReadingIndicator(colors: colors),
                   ],
-
                   const SizedBox(height: 35),
 
-                  Text(
-                    article.body,
-                    style: TextStyle(
-                      color: colors.textSec,
-                      fontSize: 17,
-                      height: 1.8,
+                  if (_isExtracting) ...[
+                    Center(
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(color: colors.pri),
+                          const SizedBox(height: 12),
+                          Text('Fetching full story…', style: TextStyle(color: colors.textSec)),
+                        ],
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    if (_extractError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 18, color: colors.textSec),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Showing summary only — $_extractError',
+                                style: TextStyle(color: colors.textSec, fontSize: 13),
+                              ),
+                            ),
+                            TextButton(onPressed: _extractContent, child: const Text('Retry')),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    Text(
+                      _displayBody,
+                      style: TextStyle(color: colors.textSec, fontSize: 17, height: 1.8),
+                    ),
+                  ],
                   const SizedBox(height: 35),
 
                   AnimatedCrossFade(
                     duration: const Duration(milliseconds: 250),
-                    crossFadeState: _isSummaryVisible
-                        ? CrossFadeState.showFirst
-                        : CrossFadeState.showSecond,
+                    crossFadeState:
+                        _isSummaryVisible ? CrossFadeState.showFirst : CrossFadeState.showSecond,
                     firstChild: Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
@@ -243,15 +285,11 @@ class _ArticleScreenState extends State<ArticleScreen> {
                             ],
                           ),
                           const SizedBox(height: 15),
-                          Text(
-                            "• Key developments summarized here.",
-                            style: TextStyle(color: colors.textSec),
-                          ),
+                          Text("• Key developments summarized here.",
+                              style: TextStyle(color: colors.textSec)),
                           const SizedBox(height: 10),
-                          Text(
-                            "• Second key point from the article.",
-                            style: TextStyle(color: colors.textSec),
-                          ),
+                          Text("• Second key point from the article.",
+                              style: TextStyle(color: colors.textSec)),
                         ],
                       ),
                     ),
@@ -307,17 +345,10 @@ class _ActionPillButton extends StatelessWidget {
               SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: colors.pri,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2, color: colors.pri),
               )
             else
-              Icon(
-                icon,
-                size: 18,
-                color: isActive ? colors.pri : colors.textPri,
-              ),
+              Icon(icon, size: 18, color: isActive ? colors.pri : colors.textPri),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -355,14 +386,8 @@ class _ReadingIndicator extends StatelessWidget {
         children: [
           Icon(Icons.graphic_eq, size: 18, color: colors.pri),
           const SizedBox(width: 8),
-          Text(
-            'Reading article aloud…',
-            style: TextStyle(
-              color: colors.pri,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text('Reading article aloud…',
+              style: TextStyle(color: colors.pri, fontSize: 13, fontWeight: FontWeight.w600)),
         ],
       ),
     );

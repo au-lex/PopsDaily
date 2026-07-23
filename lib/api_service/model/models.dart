@@ -33,6 +33,7 @@ class Article {
   final Feed? feed;
   final String title;
   final String link;
+  final String guid; // NEW
   final String description;
   final String content;
   final String? author;
@@ -47,6 +48,7 @@ class Article {
     this.feed,
     required this.title,
     required this.link,
+    required this.guid,
     required this.description,
     required this.content,
     this.author,
@@ -62,6 +64,7 @@ class Article {
     feed: json['feed'] != null ? Feed.fromJson(json['feed']) : null,
     title: json['title'] ?? '',
     link: json['link'] ?? '',
+    guid: json['guid'] ?? '',
     description: json['description'] ?? '',
     content: json['content'] ?? '',
     author: json['author'],
@@ -136,3 +139,6 @@ class FeedSource {
     feedCount: json['feed_count'] ?? 0,
   );
 }
+
+
+

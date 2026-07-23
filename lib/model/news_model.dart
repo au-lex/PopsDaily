@@ -11,11 +11,11 @@ class NewsArticle {
   final Color sourceColor;
   final String timeAgo;
   final String views;
-  final String comments;
   final String category;
-  final bool isBookmarked;
+  final String comments;
+  final String link; 
 
-  NewsArticle({
+  const NewsArticle({
     required this.id,
     required this.title,
     required this.description,
@@ -27,7 +27,7 @@ class NewsArticle {
     required this.timeAgo,
     required this.views,
     required this.category,
-    this.comments = '0',
-    this.isBookmarked = false,
+    required this.comments,
+    this.link = '',
   });
 }

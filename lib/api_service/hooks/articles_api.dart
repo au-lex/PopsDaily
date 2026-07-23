@@ -29,3 +29,9 @@ Future<ArticleListResponse> fetchArticlesBySourceId(
   });
   return ArticleListResponse.fromJson(res.data);
 }
+
+// articles_api.dart — add this
+Future<Map<String, dynamic>> extractArticleContent(int id) async {
+  final res = await dio.get('/articles/$id/extract');
+  return res.data as Map<String, dynamic>;
+}
