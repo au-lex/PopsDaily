@@ -36,3 +36,11 @@ Future<Map<String, dynamic>> extractArticleContent(int id) async {
   final res = await dio.get('/articles/$id/extract');
   return res.data as Map<String, dynamic>;
 }
+
+// GET /articles/:id/summary — returns 3 GPT-generated bullet points.
+// Backend caches the result on the article row, so repeat calls for the
+// same article are instant and don't hit OpenAI again.
+Future<List<String>> fetchArticleSummary(int id) async {
+  final res = await dio.get('/articles/$id/summary');
+  return List<String>.from(res.data['summary'] as List);
+}

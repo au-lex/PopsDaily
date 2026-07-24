@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:news_app/api_service/hooks/articles_api.dart';
 import 'package:news_app/api_service/hooks/bookmarks_api.dart';
 import 'package:news_app/api_service/token_storage.dart';
@@ -15,16 +18,20 @@ class ArticleScreen extends StatefulWidget {
   State<ArticleScreen> createState() => _ArticleScreenState();
 }
 
-class _ArticleScreenState extends State<ArticleScreen> {
+class _ArticleScreenState extends State<ArticleScreen>
+    with SingleTickerProviderStateMixin {
   bool _isBookmarked = false;
   bool _isBookmarkLoading = false;
   bool _isReading = false;
-  bool _isSummaryVisible = false;
   bool _isGeneratingSummary = false;
 
   late String _displayBody;
   bool _isExtracting = false;
   String? _extractError;
+
+  List<String> _summaryBullets = [];
+
+  late final AnimationController _readingProgressController;
 
   bool get _hasNoContent =>
       widget.article.body.isEmpty || widget.article.body == widget.article.description;
@@ -37,6 +44,17 @@ class _ArticleScreenState extends State<ArticleScreen> {
       _extractContent();
     }
     _checkBookmarkStatus();
+
+    _readingProgressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    );
+  }
+
+  @override
+  void dispose() {
+    _readingProgressController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkBookmarkStatus() async {
@@ -78,6 +96,19 @@ class _ArticleScreenState extends State<ArticleScreen> {
     }
   }
 
+  // Strips <img> entirely (they weren't loading anyway) and unwraps <a> tags
+  // (keeps the link text, drops the tag) so nothing renders as a broken
+  // image or a tappable/underlined link.
+  String _sanitizeHtml(String html) {
+    return html
+        .replaceAll(RegExp(r'<img[^>]*>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<a\b[^>]*>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'</a>', caseSensitive: false), '');
+  }
+
+  // NOTE: no longer strips ALL HTML tags — we keep paragraphs, headings,
+  // lists, etc. so flutter_html can render real formatting. img/a tags
+  // are stripped separately via _sanitizeHtml.
   Future<void> _extractContent() async {
     setState(() {
       _isExtracting = true;
@@ -85,12 +116,11 @@ class _ArticleScreenState extends State<ArticleScreen> {
     });
     try {
       final result = await extractArticleContent(widget.article.id);
-      final content = (result['content'] as String? ?? '')
-          .replaceAll(RegExp(r'<[^>]*>'), '')
-          .trim();
+      final content = (result['content'] as String? ?? '').trim();
       if (!mounted) return;
       setState(() {
-        _displayBody = content.isNotEmpty ? content : widget.article.description;
+        _displayBody =
+            content.isNotEmpty ? _sanitizeHtml(content) : widget.article.description;
         _isExtracting = false;
       });
     } catch (e) {
@@ -106,20 +136,114 @@ class _ArticleScreenState extends State<ArticleScreen> {
 
   Future<void> _onToggleListen() async {
     setState(() => _isReading = !_isReading);
+    if (_isReading) {
+      _readingProgressController
+        ..reset()
+        ..repeat();
+    } else {
+      _readingProgressController.stop();
+    }
   }
 
   Future<void> _onToggleSummary() async {
-    if (_isSummaryVisible) {
-      setState(() => _isSummaryVisible = false);
+    // already fetched once this session — just reopen the sheet, no re-fetch
+    if (_summaryBullets.isNotEmpty) {
+      _showSummarySheet();
       return;
     }
+
     setState(() => _isGeneratingSummary = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    setState(() {
-      _isGeneratingSummary = false;
-      _isSummaryVisible = true;
-    });
+    try {
+      final bullets = await fetchArticleSummary(widget.article.id);
+      if (!mounted) return;
+      setState(() {
+        _summaryBullets = bullets;
+        _isGeneratingSummary = false;
+      });
+      _showSummarySheet(); // pops up the instant it's ready — no scrolling needed
+    } catch (e) {
+      debugPrint('[ArticleScreen] summary failed: $e');
+      if (!mounted) return;
+      setState(() => _isGeneratingSummary = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't generate summary")),
+      );
+    }
+  }
+
+  void _showSummarySheet() {
+    final colors = context.colors;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: EdgeInsets.fromLTRB(
+                24,
+                20,
+                24,
+                24 + MediaQuery.of(sheetContext).padding.bottom,
+              ),
+              decoration: BoxDecoration(
+                color: colors.surface.withOpacity(0.95),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 18),
+                      decoration: BoxDecoration(
+                        color: colors.textSec.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: colors.pri),
+                      const SizedBox(width: 8),
+                      Text(
+                        "AI Summary",
+                        style: TextStyle(
+                          color: colors.textPri,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(Icons.close, color: colors.textSec),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 15),
+                  ..._summaryBullets.map(
+                    (bullet) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        '• $bullet',
+                        style: TextStyle(color: colors.textSec, fontSize: 15, height: 1.5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -129,6 +253,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
 
     return Scaffold(
       backgroundColor: colors.bg,
+      extendBody: true,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -136,25 +261,32 @@ class _ArticleScreenState extends State<ArticleScreen> {
             pinned: true,
             backgroundColor: colors.bg,
             elevation: 0,
-            leading: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Icon(Icons.arrow_back_ios, color: colors.textPri),
+            leading: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Icon(Icons.arrow_back_ios_new, color: Colors.white),
+              ),
             ),
             actions: [
-              IconButton(
-                onPressed: _isBookmarkLoading ? null : _onToggleBookmark,
-                icon: _isBookmarkLoading
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: colors.pri),
-                      )
-                    : Icon(
-                        _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                        color: _isBookmarked ? colors.pri : colors.textPri,
+              _isBookmarkLoading
+                  ? _GlassIconButton(
+                      onTap: null,
+                      child: const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       ),
-              ),
-              const SizedBox(width: 6),
+                    )
+                  : _GlassIconButton(
+                      icon: _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                      iconColor: _isBookmarked ? colors.pri : Colors.white,
+                      onTap: _onToggleBookmark,
+                    ),
+              const SizedBox(width: 16),
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
@@ -176,12 +308,12 @@ class _ArticleScreenState extends State<ArticleScreen> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 130),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                     decoration: BoxDecoration(
                       color: colors.pri,
                       borderRadius: BorderRadius.circular(3),
@@ -204,7 +336,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     article.title,
                     style: TextStyle(
                       color: colors.textPri,
-                      fontSize: 30,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                       height: 1.3,
                     ),
@@ -235,35 +367,6 @@ class _ArticleScreenState extends State<ArticleScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionPillButton(
-                          colors: colors,
-                          icon: _isReading ? Icons.pause : Icons.volume_up_outlined,
-                          label: _isReading ? 'Pause' : 'Listen',
-                          isActive: _isReading,
-                          onTap: _onToggleListen,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ActionPillButton(
-                          colors: colors,
-                          icon: Icons.auto_awesome,
-                          label: _isSummaryVisible ? 'Hide Summary' : 'AI Summary',
-                          isActive: _isSummaryVisible,
-                          isLoading: _isGeneratingSummary,
-                          onTap: _onToggleSummary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_isReading) ...[
-                    const SizedBox(height: 12),
-                    _ReadingIndicator(colors: colors),
-                  ],
                   const SizedBox(height: 35),
 
                   if (_isExtracting) ...[
@@ -300,51 +403,41 @@ class _ArticleScreenState extends State<ArticleScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    Text(
-                      _displayBody,
-                      style: TextStyle(color: colors.textSec, fontSize: 17, height: 1.8),
+                    Html(
+                      data: _displayBody,
+                      style: {
+                        "body": Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          color: colors.textSec,
+                          fontSize: FontSize(17),
+                          lineHeight: LineHeight(1.8),
+                        ),
+                        "p": Style(
+                          margin: Margins.only(bottom: 16),
+                        ),
+                        "h1, h2, h3": Style(
+                          color: colors.textPri,
+                          fontWeight: FontWeight.bold,
+                          margin: Margins.only(top: 20, bottom: 10),
+                        ),
+                        "blockquote": Style(
+                          padding: HtmlPaddings.only(left: 16),
+                          border: Border(
+                            left: BorderSide(color: colors.pri, width: 3),
+                          ),
+                          fontStyle: FontStyle.italic,
+                          color: colors.textSec,
+                        ),
+                        "ul, ol": Style(
+                          margin: Margins.only(bottom: 16, left: 8),
+                        ),
+                        "li": Style(
+                          margin: Margins.only(bottom: 6),
+                        ),
+                      },
                     ),
                   ],
-                  const SizedBox(height: 35),
-
-                  AnimatedCrossFade(
-                    duration: const Duration(milliseconds: 250),
-                    crossFadeState:
-                        _isSummaryVisible ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                    firstChild: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.auto_awesome, color: colors.pri),
-                              const SizedBox(width: 8),
-                              Text(
-                                "AI Summary",
-                                style: TextStyle(
-                                  color: colors.textPri,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 15),
-                          Text("• Key developments summarized here.",
-                              style: TextStyle(color: colors.textSec)),
-                          const SizedBox(height: 10),
-                          Text("• Second key point from the article.",
-                              style: TextStyle(color: colors.textSec)),
-                        ],
-                      ),
-                    ),
-                    secondChild: const SizedBox(width: double.infinity),
-                  ),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -352,64 +445,218 @@ class _ArticleScreenState extends State<ArticleScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: _FloatingActionBar(
+        colors: colors,
+        isReading: _isReading,
+        isGeneratingSummary: _isGeneratingSummary,
+        progressController: _readingProgressController,
+        onToggleListen: _onToggleListen,
+        onToggleSummary: _onToggleSummary,
+      ),
     );
   }
 }
 
-class _ActionPillButton extends StatelessWidget {
-  const _ActionPillButton({
-    required this.colors,
-    required this.icon,
-    required this.label,
+// Small circular glass button used for the back arrow / bookmark in the
+// SliverAppBar, so they stay visible over bright hero images.
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({
+    this.icon,
+    this.child,
+    this.iconColor = Colors.white,
     required this.onTap,
-    this.isActive = false,
-    this.isLoading = false,
+  }) : assert(icon != null || child != null);
+
+  final IconData? icon;
+  final Widget? child;
+  final Color iconColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Material(
+          color: Colors.black.withOpacity(0.28),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withOpacity(0.18)),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 38,
+              height: 38,
+              child: Center(
+                child: child ?? Icon(icon, size: 18, color: iconColor),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FloatingActionBar extends StatelessWidget {
+  const _FloatingActionBar({
+    required this.colors,
+    required this.isReading,
+    required this.isGeneratingSummary,
+    required this.progressController,
+    required this.onToggleListen,
+    required this.onToggleSummary,
   });
 
   final AppColorsExtension colors;
-  final IconData icon;
-  final String label;
-  final bool isActive;
+  final bool isReading;
+  final bool isGeneratingSummary;
+  final AnimationController progressController;
+  final VoidCallback onToggleListen;
+  final VoidCallback onToggleSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(58),
+          child: BackdropFilter(
+            // The blur is what actually creates the "glass" look — without
+            // it this is just a translucent color, no matter the opacity.
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(58),
+                border: Border.all(color: Colors.white.withOpacity(0.14)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: onToggleListen,
+                          behavior: HitTestBehavior.opaque,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    isReading
+                                        ? Icons.pause_circle_filled
+                                        : Icons.volume_up_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    isReading ? 'Listening' : 'Listen',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                isReading ? 'Playing article aloud' : 'Tap to play article',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.65),
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _SummaryPillButton(
+                        isLoading: isGeneratingSummary,
+                        accent: colors.white,
+                        onTap: onToggleSummary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  AnimatedBuilder(
+                    animation: progressController,
+                    builder: (context, _) {
+                      return _IndicatorBar(
+                        progress: isReading ? progressController.value : null,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryPillButton extends StatelessWidget {
+  const _SummaryPillButton({
+    required this.isLoading,
+    required this.accent,
+    required this.onTap,
+  });
+
   final bool isLoading;
+  final Color accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(24),
       onTap: isLoading ? null : onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        constraints: const BoxConstraints(minWidth: 130),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
-          color: isActive ? colors.pri.withOpacity(0.15) : colors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isActive ? colors.pri : Colors.transparent,
-            width: 1.2,
-          ),
+          color: accent, // solid pill CTA, same treatment as "Book Now"
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (isLoading)
-              SizedBox(
+              const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: colors.pri),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87),
               )
             else
-              Icon(icon, size: 18, color: isActive ? colors.pri : colors.textPri),
+              const Icon(Icons.auto_awesome, size: 18, color: Colors.black87),
             const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                isLoading ? 'Summarizing…' : label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: isActive ? colors.pri : colors.textPri,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
+            Text(
+              isLoading ? 'Summarizing' : 'AI Summary',
+              style: const TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
               ),
             ),
           ],
@@ -419,25 +666,36 @@ class _ActionPillButton extends StatelessWidget {
   }
 }
 
-class _ReadingIndicator extends StatelessWidget {
-  const _ReadingIndicator({required this.colors});
 
-  final AppColorsExtension colors;
+class _IndicatorBar extends StatelessWidget {
+  const _IndicatorBar({required this.progress});
+
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.pri.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
+    const trackWidth = 120.0;
+    return SizedBox(
+      width: trackWidth,
+      height: 4,
+      child: Stack(
         children: [
-          Icon(Icons.graphic_eq, size: 18, color: colors.pri),
-          const SizedBox(width: 8),
-          Text('Reading article aloud…',
-              style: TextStyle(color: colors.pri, fontSize: 13, fontWeight: FontWeight.w600)),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          if (progress != null)
+            FractionallySizedBox(
+              widthFactor: progress!.clamp(0.0, 1.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
         ],
       ),
     );
