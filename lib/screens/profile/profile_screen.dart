@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:news_app/api_service/hooks/auth_api.dart';
 import 'package:news_app/api_service/hooks/user_api.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_color_extension.dart';
@@ -18,6 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _userEmail;
   final String? _avatarUrl = null;
   bool _isLoading = true;
+  bool _isLoggingOut = false;
 
   @override
   void initState() {
@@ -47,6 +49,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String get _displayEmail => _userEmail ?? '';
+
+  bool get _isGuest =>
+      _userName == null || _userName!.trim().isEmpty;
+
+  void _showGuestNotice() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sign in to access this feature')),
+    );
+  }
+
+  Future<void> _handleLogout() async {
+    if (_isLoggingOut) return;
+    setState(() => _isLoggingOut = true);
+
+    try {
+      await logout(); // clears the stored auth token
+    } catch (e) {
+      debugPrint('[ProfileScreen] logout failed: $e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _isLoggingOut = false);
+      context.go(AppRoutes.login);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,14 +171,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _SettingsTile(
               icon: Iconsax.user,
               label: 'Personal Info',
+              iconColor: _isGuest ? colors.textSec.withOpacity(0.5) : null,
+              textColor: _isGuest ? colors.textSec.withOpacity(0.5) : null,
               onTap: () {
+                if (_isGuest) {
+                  _showGuestNotice();
+                  return;
+                }
                 context.push(AppRoutes.editPersonalInfo);
               },
             ),
             _SettingsTile(
               icon: Iconsax.notification,
               label: 'Notification',
-              onTap: () {},
+              onTap: () {
+                context.push(AppRoutes.notifications);
+              },
             ),
 
 
@@ -217,9 +251,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               iconColor: colors.error,
               textColor: colors.error,
               showChevron: false,
-              onTap: () {
-                // TODO: wire to your actual logout flow
-              },
+              trailing: _isLoggingOut
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.error,
+                      ),
+                    )
+                  : null,
+              onTap: _handleLogout,
             ),
             const SizedBox(height: 24),
           ],

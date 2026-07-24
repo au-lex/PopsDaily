@@ -7,6 +7,8 @@ import 'package:news_app/componets/home/news_card.dart';
 import 'package:news_app/componets/home/section.dart';
 import 'package:news_app/model/news_model.dart';
 import 'package:news_app/screens/news_details/full_news.dart';
+import 'package:news_app/screens/news_details/trending_news.dart';
+
 
 import 'package:news_app/theme/app_color_extension.dart';
 import 'package:news_app/utils/article_mapper.dart';
@@ -68,6 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openTrending() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TrendingScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -109,7 +117,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Column(
                           children: [
                             if (breaking.isNotEmpty) ...[
-                              SectionTitle(title: "Trending", onSeeAll: () {}),
+                              SectionTitle(
+                                title: "Trending",
+                                onSeeAll: _openTrending,
+                              ),
                               const SizedBox(height: 18),
                               BreakingNews(articles: breaking),
                               const SizedBox(height: 30),

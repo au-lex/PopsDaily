@@ -13,6 +13,8 @@ import 'package:news_app/screens/home_screen/home_screen.dart';
 import 'package:news_app/screens/news_category_screen/category_screen.dart';
 import 'package:news_app/screens/news_details/full_news.dart';
 import 'package:news_app/screens/news_details/news_details.dart';
+import 'package:news_app/screens/news_details/trending_news.dart';
+import 'package:news_app/screens/notification/notification_screen.dart';
 
 import 'package:news_app/screens/onboarding/onboarding_screen.dart';
 import 'package:news_app/screens/profile/edit_profile.dart';
@@ -37,8 +39,10 @@ class AppRoutes {
   static const String forgotpassword = '/forgotpassword';
   static const String resetpassword = '/resetpassword';
   static const publisher = '/publisher';
+  static const notifications = '/notifications';
 
   static const String seeAll = '/see_all';
+  static const String trending = '/trending';
 
   static const search = '/search';
 
@@ -73,6 +77,22 @@ class AppRoutes {
             title: extra?['title'] as String? ?? 'See All',
             initialCategory: extra?['initialCategory'] as String? ?? '',
           );
+        },
+      ),
+
+      GoRoute(
+        path: notifications,
+        name: notifications,
+        builder: (context, state) {
+          return NotificationsScreen();
+        },
+      ),
+
+      GoRoute(
+        path: trending,
+        name: trending,
+        builder: (context, state) {
+          return TrendingScreen();
         },
       ),
 
