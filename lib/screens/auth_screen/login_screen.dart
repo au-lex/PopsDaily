@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:news_app/api_service/hooks/auth_api.dart';
 import 'package:news_app/config/routes.dart';
 import 'package:news_app/theme/app_colors.dart';
@@ -51,14 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _handleGoogleLogin() async {
-    setState(() => _isLoading = true);
-
-    // TODO: wire to your actual Google sign-in flow
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+  void _handleGuestLogin() {
     context.go(AppRoutes.home);
   }
 
@@ -117,7 +111,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: AppColors.textPri),
-                  decoration: _inputDecoration('you@example.com'),
+                  decoration: _inputDecoration('you@example.com').copyWith(
+                    prefixIcon: const Icon(
+                      Iconsax.sms,
+                      color: AppColors.textSec,
+                      size: 20,
+                    ),
+                  ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Enter your email';
@@ -145,11 +145,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   obscureText: _obscurePassword,
                   style: const TextStyle(color: AppColors.textPri),
                   decoration: _inputDecoration('••••••••').copyWith(
+                    prefixIcon: const Icon(
+                      Iconsax.lock,
+                      color: AppColors.textSec,
+                      size: 20,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
+                        _obscurePassword ? Iconsax.eye_slash : Iconsax.eye,
                         color: AppColors.textSec,
                         size: 20,
                       ),
@@ -207,12 +210,19 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: AppColors.white,
                             ),
                           )
-                        : const Text(
-                            'Log In',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Iconsax.login, size: 18, color: AppColors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                'Log In',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                   ),
                 ),
@@ -240,12 +250,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Google sign-in
+                // Guest access
                 SizedBox(
                   width: double.infinity,
                   height: 56,
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _handleGoogleLogin,
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : _handleGuestLogin,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textPri,
                       side: BorderSide(color: AppColors.textSec.withOpacity(0.3)),
@@ -253,16 +263,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(28),
                       ),
                     ),
-                    icon: Image.network(
-                      'https://www.google.com/favicon.ico',
-                      width: 20,
-                      height: 20,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.g_mobiledata, size: 24),
-                    ),
-                    label: const Text(
-                      'Continue with Google',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Iconsax.user, size: 18, color: AppColors.textPri),
+                        SizedBox(width: 8),
+                        Text(
+                          'Continue as guest',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
                   ),
                 ),

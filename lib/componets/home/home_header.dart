@@ -115,7 +115,9 @@ String get _displayName {
                 width: 48,
                 decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(26)),
                 child: IconButton(
-                  onPressed: () {},
+                  onPressed: () {
+                     context.push(AppRoutes.notifications);
+                  },
                   icon: Icon(Icons.notifications_none_rounded, color: colors.textPri),
                 ),
               ),

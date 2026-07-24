@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:news_app/api_service/hooks/articles_api.dart';
 import 'package:news_app/api_service/hooks/bookmarks_api.dart';
 import 'package:news_app/api_service/token_storage.dart';
@@ -32,6 +33,7 @@ class _ArticleScreenState extends State<ArticleScreen>
   List<String> _summaryBullets = [];
 
   late final AnimationController _readingProgressController;
+  final FlutterTts _tts = FlutterTts();
 
   bool get _hasNoContent =>
       widget.article.body.isEmpty || widget.article.body == widget.article.description;
@@ -49,11 +51,31 @@ class _ArticleScreenState extends State<ArticleScreen>
       vsync: this,
       duration: const Duration(seconds: 12),
     );
+
+    _initTts();
+  }
+
+  void _initTts() {
+    _tts.setCompletionHandler(() {
+      if (!mounted) return;
+      setState(() => _isReading = false);
+      _readingProgressController.stop();
+    });
+    _tts.setErrorHandler((msg) {
+      debugPrint('[ArticleScreen] TTS error: $msg');
+      if (!mounted) return;
+      setState(() => _isReading = false);
+      _readingProgressController.stop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't read article aloud")),
+      );
+    });
   }
 
   @override
   void dispose() {
     _readingProgressController.dispose();
+    _tts.stop();
     super.dispose();
   }
 
@@ -106,6 +128,15 @@ class _ArticleScreenState extends State<ArticleScreen>
         .replaceAll(RegExp(r'</a>', caseSensitive: false), '');
   }
 
+  // TTS needs plain text, not markup — strips every remaining tag and
+  // collapses whitespace so the speech engine doesn't read out stray tags.
+  String _plainTextForSpeech(String html) {
+    return html
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   // NOTE: no longer strips ALL HTML tags — we keep paragraphs, headings,
   // lists, etc. so flutter_html can render real formatting. img/a tags
   // are stripped separately via _sanitizeHtml.
@@ -135,14 +166,27 @@ class _ArticleScreenState extends State<ArticleScreen>
   }
 
   Future<void> _onToggleListen() async {
-    setState(() => _isReading = !_isReading);
     if (_isReading) {
-      _readingProgressController
-        ..reset()
-        ..repeat();
-    } else {
+      await _tts.stop();
+      if (!mounted) return;
+      setState(() => _isReading = false);
       _readingProgressController.stop();
+      return;
     }
+
+    if (_isExtracting) return; // don't read while content is still loading
+
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(0.45);
+
+    setState(() => _isReading = true);
+    _readingProgressController
+      ..reset()
+      ..repeat();
+
+    final textToRead =
+        '${widget.article.title}. ${_plainTextForSpeech(_displayBody)}';
+    await _tts.speak(textToRead);
   }
 
   Future<void> _onToggleSummary() async {
